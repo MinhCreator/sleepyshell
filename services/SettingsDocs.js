@@ -44,6 +44,7 @@ var LAYOUT = [
         { title: "Advanced", keys: ["clockFont", "clockFormat", "dateFormat", "hoverCloseMs"] }] },
     { tab: "widgets", section: "right-island", cards: [
         { title: "Widgets", keys: ["rightOrder", "rightHidden", "dropdownFit"] },
+        { title: "Voxtype", keys: ["trayVoxtypeLang", "trayVoxtypeTint"] },
         { title: "Advanced", keys: ["updateMinutes", "rightPadding"] }] },
     { tab: "apps", section: "apps", cards: [
         { title: "Default apps", keys: ["defaultTerminal"] },
@@ -74,6 +75,7 @@ var LAYOUT = [
     { tab: "files", section: "config", cards: [
         { title: "Hyprland", keys: ["pathCustombinds", "keybindExtraFiles", "pathMonitors", "pathHypridle"] },
         { title: "Theme", keys: ["pathColors"] },
+        { title: "Voxtype", keys: ["pathVoxtype"] },
         { title: "Window", keys: ["showUnavailableTabs"] }] },
     { tab: "window", section: "settings-window", cards: [
         { title: "Remembered by the settings window (no need to edit)", keys: ["advancedOpen"] }] }
@@ -127,6 +129,8 @@ var DOCS = {
     rightPadding: "Space between the right island's edges and its widgets, in pixels.",
     dropdownFit: "How a widget's dropdown meets its island: extend (the island widens so the panel hangs flush under it) or float (a separate card under the island).",
     updateMinutes: "How often the updates widget checks for package updates, in minutes.",
+    trayVoxtypeLang: "Show the language Voxtype is set to (EN or SR) as a small badge on its tray icon. The tray menu lists the language either way.",
+    trayVoxtypeTint: "Colour Voxtype's tray icon to match the bar's other icons.",
     // notifications
     toastStack: "Where a new notification toast goes: top (newest on top) or bottom.",
     toastMax: "How many notification toasts show at once.",
@@ -185,6 +189,7 @@ var DOCS = {
     pathCustombinds: "The Hyprland file that holds the keybinds you add here.",
     keybindExtraFiles: "Keybind files Hyprland loads in some way the settings window cannot see.",
     pathColors: "The colours file that matugen writes and the shell watches.",
+    pathVoxtype: "Voxtype's own config file, read to find its language for the tray badge.",
     showUnavailableTabs: "List tabs that cannot work here (a missing program, no battery) greyed out instead of hiding them.",
     // apps
     defaultTerminal: "Program name of the terminal emulator.",

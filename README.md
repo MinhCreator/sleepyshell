@@ -114,7 +114,9 @@ Reorder and hide them in the Right island tab. Default order:
   `hyprland.lua` (the Keybinds tab offers Set up).
 - **Recording**: a blinking red dot while a screen recorder says it is recording (over the shell's IPC, below).
 - **System tray**: StatusNotifier icons with a themed right-click menu (with submenus); middle click for the
-  secondary action; the wheel scrolls the item. Hidden when empty.
+  secondary action; the wheel scrolls the item. Hidden when empty. Voxtype's icon gets EN and SR entries in its menu
+  (the language from Voxtype's own config shown as selected; picking the other one runs Voxtype's `ptt.py lang`, if that script is in its config
+  folder), and two optional extras, both off until switched on there: a small EN or SR badge and a tint.
 </details>
 
 <details>

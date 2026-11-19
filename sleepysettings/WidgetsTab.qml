@@ -38,6 +38,23 @@ TabPage {
         }
     }
 
+    Section {
+        title: "Voxtype"
+
+        SwitchRow {
+            label: "Language badge"
+            key: "trayVoxtypeLang"
+            info: "Shows EN or SR on Voxtype's tray icon, as set in Voxtype's own config file (the Config tab says which one). Nothing shows if the language is not one of those or the file can't be read. Voxtype's tray menu lists the language whether this is on or off."
+            tags: "voxtype voice dictation language english serbian badge tray"
+        }
+        SwitchRow {
+            label: "Tint the icon"
+            key: "trayVoxtypeTint"
+            info: "Colours Voxtype's tray icon to match the bar's other icons."
+            tags: "voxtype voice dictation colour color tint tray icon"
+        }
+    }
+
     AdvancedSection {
         NumberRow {
             label: "Update check interval"

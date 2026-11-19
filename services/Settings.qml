@@ -135,6 +135,10 @@ Singleton {
             // bottom edge, "float" leaves the island alone and shows the panel as a card under it
             dropdownFit: { tab: "widgets", def: "extend" },
             updateMinutes: { tab: "widgets", def: 30, min: 5, max: 180, step: 5, spin: true },
+            // Voxtype's tray icon (sleepybar/widgets/tray/Tray.qml), both off: the language badge (read from Voxtype's own
+            // config, since its tray item carries no overlay icon) and a tint of the icon
+            trayVoxtypeLang: { tab: "widgets", def: false },
+            trayVoxtypeTint: { tab: "widgets", def: false },
             // notifications
             toastStack: { tab: "notifications", def: "top" },
             toastMax: { tab: "notifications", def: 4, min: 1, max: 8, spin: true },
@@ -209,6 +213,8 @@ Singleton {
             // Keybinds window and the Keybinds tab show them (Keybinds.explain)
             keybindNotes: { tab: "keybinds", def: {} },
             pathColors: { tab: "files", def: "~/.local/state/quickshell/colors.json" },
+            // Voxtype's config, only read (services/VoxtypeLang.qml): the language its tray badge shows
+            pathVoxtype: { tab: "files", def: "~/.config/voxtype/config.toml" },
             // the settings window itself: a row of the Config tab, staged behind Apply like the rest; the key is the same, so the saved value carries over
             showUnavailableTabs: { tab: "files", def: false },
             // ---- BEGIN apps (Apps tab) ----
@@ -273,6 +279,8 @@ Singleton {
     readonly property int rightPadding: live("rightPadding")
     // "extend" or "float"; anything else reads as extend
     readonly property string dropdownFit: live("dropdownFit")
+    readonly property bool trayVoxtypeLang: live("trayVoxtypeLang")
+    readonly property bool trayVoxtypeTint: live("trayVoxtypeTint")
     // notification toasts: "top" puts the newest on top and pushes the others down, "bottom"
     // adds it under them (sleepybar/widgets/notifications/NotifPopups.qml)
     readonly property string toastStack: live("toastStack")
@@ -341,6 +349,7 @@ Singleton {
     // the old key (see the adapter): only Keybinds.migrate reads it
     readonly property string legacyPathBinds: expand(adapter.pathBinds)
     readonly property string pathColors: expand(stored("pathColors"))
+    readonly property string pathVoxtype: expand(stored("pathVoxtype"))
     // ---- BEGIN apps ----
     // applied values only: a launch must not follow a draft
     readonly property string defaultTerminal: stored("defaultTerminal")
@@ -1360,6 +1369,8 @@ Singleton {
             property var customTools: root.schema.customTools.def
             property var toolOverrides: root.schema.toolOverrides.def
             property int updateMinutes: root.schema.updateMinutes.def
+            property bool trayVoxtypeLang: root.schema.trayVoxtypeLang.def
+            property bool trayVoxtypeTint: root.schema.trayVoxtypeTint.def
             property string wallpaperDir: root.schema.wallpaperDir.def
             property string pathHypridle: root.schema.pathHypridle.def
             property string pathMonitors: root.schema.pathMonitors.def
@@ -1370,6 +1381,7 @@ Singleton {
             // custom file over into keybindExtraFiles (Keybinds.migrate), then cleared
             property string pathBinds: ""
             property string pathColors: root.schema.pathColors.def
+            property string pathVoxtype: root.schema.pathVoxtype.def
             // ---- BEGIN apps ----
             property string defaultTerminal: root.schema.defaultTerminal.def
             property bool polkitAgent: root.schema.polkitAgent.def

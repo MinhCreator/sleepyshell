@@ -294,6 +294,18 @@ TabPage {
         }
     }
 
+    // not in allRows: a program the user may not have is no problem for the status line
+    Section {
+        title: "Voxtype"
+
+        FileRow {
+            label: "Voxtype config"
+            key: "pathVoxtype"
+            filters: ["*.toml"]
+            purpose: "Voxtype's own settings file. The shell only reads it, to show the language on Voxtype's tray icon, and never changes it."
+        }
+    }
+
     // how the window behaves (it belongs with the settings, behind Apply)
     Section {
         title: "Window"
