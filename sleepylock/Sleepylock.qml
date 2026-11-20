@@ -16,6 +16,7 @@ import qs
 // Suspend (PrepareForSleep) does not lock: locking before sleep is left out on purpose.
 // Session.Unlock unlocks again (the monitor below), so
 // `loginctl unlock-session <id>` from a TTY is the way out while this process is alive.
+// The lock also sets logind's LockedHint (hintWanted below), which other programs read as the screen lock state.
 // PAM config "login" is PamContext's default: /etc/pam.d/login -> system-local-login ->
 // system-login -> system-auth (pam_shells, pam_nologin, pam_faillock, pam_unix). Only its auth
 // rules run. The wallpaper per output comes from `awww query`, one line per output:
@@ -125,6 +126,57 @@ Scope {
     // this session's logind object path (e.g. /org/freedesktop/login1/session/_33), asked of logind for
     // XDG_SESSION_ID ("auto": the session of the asking process); until it is known no logind signal is taken
     property string sessionPath: ""
+
+    // logind's LockedHint follows the lock, so programs that act on the screen lock (a password manager that locks
+    // and unlocks with it) see both edges: true once the compositor holds the lock, false on unlock or when the lock
+    // is lost. One call at a time; a change while a call runs is sent when it ends. A failed call is retried a few
+    // times, then given up so the lock never hangs on it.
+    readonly property bool hintWanted: sessionLock.secure && persist.locked
+    property bool hintSent: false     // what logind last took from this instance; false is its default
+    property bool hintSending: false  // the value of the call in flight
+    property int hintFailures: 0
+    readonly property int hintMaxFailures: 3
+    // nothing left to send (or nothing that can be sent): sleepylock.qml waits for this before it ends
+    readonly property bool hintSettled: sessionPath === "" || hintFailures >= hintMaxFailures
+        || (!hintCall.running && !hintRetry.running && hintSent === hintWanted)
+
+    onHintWantedChanged: {
+        hintFailures = 0;
+        sendHint();
+    }
+    onSessionPathChanged: sendHint()
+
+    function sendHint() {
+        if (sessionPath === "" || hintCall.running || hintRetry.running || hintSent === hintWanted
+                || hintFailures >= hintMaxFailures)
+            return;
+        hintSending = hintWanted;
+        hintCall.command = ["gdbus", "call", "--system", "--timeout", "5", "--dest", "org.freedesktop.login1",
+            "--object-path", sessionPath, "--method", "org.freedesktop.login1.Session.SetLockedHint",
+            hintSending ? "true" : "false"];
+        hintCall.running = true;
+    }
+
+    Process {
+        id: hintCall
+        onExited: code => {
+            if (code === 0) {
+                root.hintSent = root.hintSending;
+                root.sendHint();
+            } else {
+                root.hintFailures += 1;
+                console.warn("lock: logind did not take the lock hint (exit " + code + ", try " + root.hintFailures + ")");
+                if (root.hintFailures < root.hintMaxFailures)
+                    hintRetry.start();
+            }
+        }
+    }
+
+    Timer {
+        id: hintRetry
+        interval: 1000
+        onTriggered: root.sendHint()
+    }
 
     PamContext {
         id: pam
