@@ -417,12 +417,16 @@ def _rewrite_tree(tree: str, pats, keep_from: str | None) -> str:
         return run(["write-tree"]).decode().strip()
 
 
-def bundle(rev: str, skip_dirs: tuple[str, ...] = (), skip_files=frozenset()) -> tuple[str, int]:
+def bundle(rev: str, skip_dirs: tuple[str, ...] = (), skip_files=frozenset(),
+           only: tuple[str, ...] = ()) -> tuple[str, int]:
     """Every tracked text file of rev, with line numbers, as <file path="..."> blocks. Returns the text
-    and the number of files."""
+    and the number of files. With only, just the paths under those folder prefixes (the audit's --deep
+    areas)."""
     parts, count = [], 0
     for path in git("ls-tree", "-r", "--name-only", "--full-tree", rev).splitlines():
         if path in BUNDLE_SKIP or path in skip_files or path.startswith(skip_dirs):
+            continue
+        if only and not path.startswith(only):
             continue
         raw = subprocess.run(["git", "cat-file", "blob", f"{rev}:{path}"], cwd=REPO_ROOT, capture_output=True).stdout
         if len(raw) > BUNDLE_MAX_FILE or b"\0" in raw[:8192]:
