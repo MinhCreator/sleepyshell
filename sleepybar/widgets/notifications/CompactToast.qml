@@ -55,7 +55,7 @@ Rectangle {
 
         Text {
             Layout.fillWidth: true
-            text: row.notif?.summary ?? ""
+            text: Notifs.titleOf(row.notif)
             textFormat: Text.PlainText   // app text, never markup (review 4)
             elide: Text.ElideRight
             font.family: Theme.font
