@@ -2,6 +2,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Services.Notifications
 import "Lua.js" as Lua
 import "LocalImage.js" as LocalImage
@@ -127,6 +128,8 @@ Singleton {
             // reload. Its age is unknown after a reload, so ago() is "".
             if (!n.lastGeneration)
                 root.times[n.id] = Date.now();     // stamp first: the delegates read it at once
+            // a kept one's PID is long stale: its caller is named, its parents are not read
+            root.noteCaller(n, !n.lastGeneration);
             // untracked notifications are dropped
             n.tracked = true;
             n.closed.connect(() => root.forget(n));
@@ -172,6 +175,16 @@ Singleton {
 
     function forget(n) {
         delete root.times[n.id];
+        if (root.callers[n.id] !== undefined) {
+            const rest = Object.assign({}, root.callers);
+            delete rest[n.id];
+            root.callers = rest;
+        }
+        if (root.callerPending[n.id] !== undefined) {
+            const waiting = Object.assign({}, root.callerPending);
+            delete waiting[n.id];
+            root.callerPending = waiting;
+        }
         root.popups = root.popups.filter(p => p !== n);
     }
 
@@ -273,6 +286,10 @@ Singleton {
             return [];
         const img = String(n.image ?? "");
         const out = [];
+        // a KeePassXC card shows the app that read the secret, then KeePassXC's own icon
+        const caller = root.callers[n.id];
+        if (caller)
+            out.push(caller.icon);
         if (img.startsWith("image://icon/"))
             out.push(localIcon(img.slice("image://icon/".length)));
         else if (img.startsWith("file:"))
@@ -340,7 +357,120 @@ Singleton {
     // one (-a), and that name tells the reader nothing about who sent it
     function appLabel(n) {
         const a = n?.appName ?? "";
+        const caller = n ? root.callers[n.id] : undefined;
+        if (caller)
+            return caller.label + "  ·  " + a;
         return a.toLowerCase() === "notify-send" ? "" : a;
+    }
+
+    // ---- KeePassXC: which app read the secret ----
+    // KeePassXC (Secret Service) names the reader only in the body: 'Entry "X" from database "Y" was used by
+    // <command> (PID: n)', or '<n> Entry(s) was used by <command> (PID: n)'. The card shows that app's icon
+    // and name before KeePassXC's own (iconUrls, appLabel). The English text is matched: under another
+    // language the card stays as KeePassXC sent it.
+    // A helper that only fetches for someone else (secret-tool, mostly run from a shell) is looked through:
+    // the names of its parent processes are read from /proc, and the first that is neither a helper nor a
+    // shell is shown as "<app> (via secret-tool)". That works only while the helper still runs; it has
+    // usually exited by the time the notification arrives, and then the helper's own name is shown.
+    readonly property var secretHelpers: ["secret-tool"]
+    readonly property var shells: ["sh", "bash", "dash", "zsh", "fish", "ksh", "tcsh", "csh"]
+    // by notification id: { label, icon }; replaced whole on every change so the cards' bindings see it
+    property var callers: ({})
+    // lookups waiting for the one /proc reader, oldest first; capped, the oldest dropped
+    property var callerQueue: []
+    // by notification id: the caller's command, for the reader's answer
+    property var callerPending: ({})
+
+    // pure: the command and PID in a KeePassXC notification, { cmd, pid }, else null. The command is cut to
+    // its file name (KeePassXC may give a path).
+    function keepassCaller(appName, body) {
+        if (String(appName ?? "").toLowerCase() !== "keepassxc")
+            return null;
+        // the last one: the caller ends the text, and an entry's name could hold the same words
+        const text = String(body ?? "");
+        const at = text.lastIndexOf("was used by ");
+        const m = at < 0 ? null : /^was used by (.+?) \(PID: (\d{1,10})\)\s*$/.exec(text.slice(at));
+        if (!m)
+            return null;
+        const cmd = m[1].trim().split("/").pop();
+        return cmd === "" ? null : { cmd: cmd, pid: Number(m[2]) };
+    }
+
+    // pure: which name the card shows for a caller and which app's icon it looks up, given the names of the
+    // caller's process and its parents from /proc ([] when not read). The names count only when the first is
+    // the caller's own (/proc cuts a name to 15 characters): a PID used again names some other process.
+    function callerApp(cmd, chain) {
+        if (!root.secretHelpers.includes(cmd))
+            return { app: cmd, via: "" };
+        const own = Array.isArray(chain) && chain.length > 0 && chain[0] === cmd.slice(0, 15);
+        const up = own ? chain.slice(1).find(x => x !== "" && !root.shells.includes(x) && !root.secretHelpers.includes(x)) : undefined;
+        return up ? { app: up, via: cmd } : { app: cmd, via: "" };
+    }
+
+    // the card's { label, icon } for an app: its desktop entry's name and icon, else the command itself and
+    // the terminal icon
+    function callerCard(who) {
+        const e = DesktopEntries.byId(who.app) ?? DesktopEntries.heuristicLookup(who.app);
+        const name = e?.name || who.app;
+        return {
+            label: who.via ? name + " (via " + who.via + ")" : name,
+            icon: root.localIcon(e?.icon ?? "") || root.localIcon("utilities-terminal")
+        };
+    }
+
+    function setCaller(id, card) {
+        root.callers = Object.assign({}, root.callers, { [id]: card });
+    }
+
+    function noteCaller(n, lookUp) {
+        const c = root.keepassCaller(n.appName, n.body);
+        if (!c)
+            return;
+        root.setCaller(n.id, root.callerCard(root.callerApp(c.cmd, [])));
+        if (!lookUp || !root.secretHelpers.includes(c.cmd) || c.pid <= 1)
+            return;
+        root.callerPending = Object.assign({}, root.callerPending, { [n.id]: c.cmd });
+        root.callerQueue = root.callerQueue.concat([{ id: n.id, pid: c.pid }]).slice(-8);
+        root.nextCaller();
+    }
+
+    function nextCaller() {
+        if (chainReader.running || root.callerQueue.length === 0)
+            return;
+        const job = root.callerQueue[0];
+        root.callerQueue = root.callerQueue.slice(1);
+        chainReader.command = ["awk", "-v", "id=" + job.id, "-v", "p=" + job.pid, root.chainScript];
+        chainReader.running = true;
+    }
+
+    // The reader's answer: the notification id, then the names from the caller up to 6 processes, one a line
+    // (/proc escapes a newline in a name). A notification gone meanwhile is ignored.
+    function gotChain(text) {
+        const lines = String(text).slice(0, 2048).split("\n");
+        const id = Number(lines[0]);
+        const cmd = root.callerPending[id];
+        if (cmd === undefined)
+            return;
+        const rest = Object.assign({}, root.callerPending);
+        delete rest[id];
+        root.callerPending = rest;
+        if (root.callers[id] !== undefined)
+            root.setCaller(id, root.callerCard(root.callerApp(cmd, lines.slice(1, 7))));
+    }
+
+    // prints id, then Name: of /proc/<p>/status and each parent's, until PID 1, a missing process or 6 names
+    readonly property string chainScript: 'BEGIN { print id; for (i = 0; i < 6 && p > 1; i++) { f = "/proc/" p "/status"; n = ""; q = 0; ' +
+        'while ((getline l < f) > 0) { if (l ~ /^Name:/) { sub(/^Name:[ \\t]*/, "", l); n = l } else if (l ~ /^PPid:/) { sub(/^PPid:[ \\t]*/, "", l); q = l + 0 } } ' +
+        'close(f); if (n == "") exit; print n; p = q } }'
+
+    // the one /proc reader: one lookup at a time, the next started when it exits (also when awk is missing
+    // or fails, so the queue never stalls; the card then keeps the caller's own name)
+    Process {
+        id: chainReader
+        stdout: StdioCollector {
+            onStreamFinished: root.gotChain(text)
+        }
+        onExited: Qt.callLater(root.nextCaller)
     }
 
     // "now", "3 min", "2 h", "yesterday", "4 d"
