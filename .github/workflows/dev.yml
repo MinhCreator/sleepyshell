@@ -16,6 +16,8 @@ concurrency:
 
 jobs:
   review:
+    # a manual run reviews dev only: started on another branch it would label that branch's head as dev
+    if: github.ref == 'refs/heads/dev'
     uses: ./.github/workflows/review.yml
     with:
       branch: dev
