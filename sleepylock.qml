@@ -27,7 +27,10 @@ ShellRoot {
         // unlocked: a moment for the compositor to take the unlock, then the process ends;
         // locked again inside that moment (logind's Session.Lock): it stays
         // (a lock the compositor refused or ended later also unlocks: Sleepylock.qml's watchdog)
-        onLockedChanged: locked ? quit.stop() : quit.start()
+        onLockedChanged: {
+            root.hintWaits = 0;
+            locked ? quit.stop() : quit.start();
+        }
     }
 
     // never acknowledged and never refused: end, so that -n does not keep the next launch out
@@ -42,10 +45,23 @@ ShellRoot {
         }
     }
 
+    // the lock hint's "false" must reach logind before the process ends, or programs following it stay locked;
+    // waited for in 500 ms steps, at most 3 s more, so a silent logind cannot keep the process alive
+    property int hintWaits: 0
+
     Timer {
         id: quit
         interval: 500
-        onTriggered: if (!lock.locked || !lock.secure) Qt.exit(0)
+        onTriggered: {
+            if (lock.locked && lock.secure)
+                return;
+            if (!lock.hintSettled && root.hintWaits < 6) {
+                root.hintWaits += 1;
+                quit.start();
+                return;
+            }
+            Qt.exit(0);
+        }
     }
 
     // keeps Quickshell's own reload popup away, as in the bar (a lock file edited while locked

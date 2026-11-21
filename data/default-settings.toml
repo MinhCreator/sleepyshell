@@ -152,6 +152,13 @@ rightHidden = ""
 # How a widget's dropdown meets its island: extend (the island widens so the panel hangs flush under it) or float (a separate card under the island). Default: "extend".
 dropdownFit = "extend"
 
+# ---- Voxtype ----
+# Show the language Voxtype is set to (EN or SR) as a small badge on its tray icon. The tray menu lists the language either way. Default: false.
+trayVoxtypeLang = false
+
+# Colour Voxtype's tray icon to match the bar's other icons. Default: false.
+trayVoxtypeTint = false
+
 # ---- Advanced ----
 # How often the updates widget checks for package updates, in minutes. Range 5 to 180. Default: 30.
 updateMinutes = 30
@@ -184,6 +191,22 @@ toastStack = "top"
 
 # Show the picture under a screenshot's notification. Default: true.
 shotPreview = true
+
+# ---- Urgent ----
+# Apps whose notifications are urgent (pop up under do not disturb, stay until dismissed, play the sound), comma-separated desktop entries or app names, for example librewolf. Default: "".
+urgentApps = ""
+
+# How an urgent notification stands out: full, tint, chip, edge, or your own parts such as "tint 30, edge 6, chip". Default: "full".
+urgentLook = "full"
+
+# Play a sound when an urgent notification arrives, also under do not disturb. Default: true.
+urgentSound = true
+
+# The sound an urgent notification plays. Default: "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga".
+urgentSoundFile = "/usr/share/sounds/freedesktop/stereo/message-new-instant.oga"
+
+# How loud the urgent sound plays compared with the main output's volume, in percent (100 = the same). Range 0 to 150. Default: 100.
+urgentSoundVolume = 100
 
 # ---- Advanced ----
 # How many notification toasts show at once. Range 1 to 8. Default: 4.
@@ -358,6 +381,10 @@ pathHypridle = ""
 # ---- Theme ----
 # The colours file that matugen writes and the shell watches. Default: "~/.local/state/quickshell/colors.json".
 pathColors = "~/.local/state/quickshell/colors.json"
+
+# ---- Voxtype ----
+# Voxtype's own config file, read to find its language for the tray badge. Default: "~/.config/voxtype/config.toml".
+pathVoxtype = "~/.config/voxtype/config.toml"
 
 # ---- Window ----
 # List tabs that cannot work here (a missing program, no battery) greyed out instead of hiding them. Default: false.

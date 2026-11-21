@@ -44,6 +44,7 @@ var LAYOUT = [
         { title: "Advanced", keys: ["clockFont", "clockFormat", "dateFormat", "hoverCloseMs"] }] },
     { tab: "widgets", section: "right-island", cards: [
         { title: "Widgets", keys: ["rightOrder", "rightHidden", "dropdownFit"] },
+        { title: "Voxtype", keys: ["trayVoxtypeLang", "trayVoxtypeTint"] },
         { title: "Advanced", keys: ["updateMinutes", "rightPadding"] }] },
     { tab: "apps", section: "apps", cards: [
         { title: "Default apps", keys: ["defaultTerminal"] },
@@ -51,6 +52,7 @@ var LAYOUT = [
         { title: "Apps on workspaces", keys: ["workspaceApps"] }] },
     { tab: "notifications", section: "notifications", cards: [
         { title: "Notifications", keys: ["dnd", "toastStack", "shotPreview"] },
+        { title: "Urgent", keys: ["urgentApps", "urgentLook", "urgentSound", "urgentSoundFile", "urgentSoundVolume"] },
         { title: "Advanced", keys: ["toastMax", "shotPreviewMax", "notifOrder"] }] },
     { tab: "theme", section: "theme", needs: ["matugen"], cards: [
         { title: "Colours", keys: ["themePreset", "themeScheme", "themeMode", "themeContrast"] },
@@ -73,6 +75,7 @@ var LAYOUT = [
     { tab: "files", section: "config", cards: [
         { title: "Hyprland", keys: ["pathCustombinds", "keybindExtraFiles", "pathMonitors", "pathHypridle"] },
         { title: "Theme", keys: ["pathColors"] },
+        { title: "Voxtype", keys: ["pathVoxtype"] },
         { title: "Window", keys: ["showUnavailableTabs"] }] },
     { tab: "window", section: "settings-window", cards: [
         { title: "Remembered by the settings window (no need to edit)", keys: ["advancedOpen"] }] }
@@ -126,12 +129,19 @@ var DOCS = {
     rightPadding: "Space between the right island's edges and its widgets, in pixels.",
     dropdownFit: "How a widget's dropdown meets its island: extend (the island widens so the panel hangs flush under it) or float (a separate card under the island).",
     updateMinutes: "How often the updates widget checks for package updates, in minutes.",
+    trayVoxtypeLang: "Show the language Voxtype is set to (EN or SR) as a small badge on its tray icon. The tray menu lists the language either way.",
+    trayVoxtypeTint: "Colour Voxtype's tray icon to match the bar's other icons.",
     // notifications
     toastStack: "Where a new notification toast goes: top (newest on top) or bottom.",
     toastMax: "How many notification toasts show at once.",
     notifOrder: "Order of the notification list in the bell: newest or oldest first.",
     dnd: "Do not disturb: no toasts for normal notifications.",
     shotPreview: "Show the picture under a screenshot's notification.",
+    urgentApps: "Apps whose notifications are urgent (pop up under do not disturb, stay until dismissed, play the sound), comma-separated desktop entries or app names, for example librewolf.",
+    urgentSound: "Play a sound when an urgent notification arrives, also under do not disturb.",
+    urgentSoundFile: "The sound an urgent notification plays.",
+    urgentSoundVolume: "How loud the urgent sound plays compared with the main output's volume, in percent (100 = the same).",
+    urgentLook: "How an urgent notification stands out: full, tint, chip, edge, or your own parts such as \"tint 30, edge 6, chip\".",
     polkitAgent: "The shell answers apps that ask for an admin password; off leaves that to another polkit agent you run.",
     shotPreviewMax: "Tallest a screenshot preview gets, in pixels.",
     // idle
@@ -179,6 +189,7 @@ var DOCS = {
     pathCustombinds: "The Hyprland file that holds the keybinds you add here.",
     keybindExtraFiles: "Keybind files Hyprland loads in some way the settings window cannot see.",
     pathColors: "The colours file that matugen writes and the shell watches.",
+    pathVoxtype: "Voxtype's own config file, read to find its language for the tray badge.",
     showUnavailableTabs: "List tabs that cannot work here (a missing program, no battery) greyed out instead of hiding them.",
     // apps
     defaultTerminal: "Program name of the terminal emulator.",
