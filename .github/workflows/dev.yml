@@ -1,10 +1,12 @@
 # Every push to dev gets a Claude review. A newer push cancels the running one; the next run then reviews
 # everything since the last completed review, so nothing is skipped.
+# A manual run (gh workflow run dev.yml) reviews dev the same way, without a push.
 name: dev
 
 on:
   push:
     branches: [dev]
+  workflow_dispatch:
 
 permissions: {}
 
