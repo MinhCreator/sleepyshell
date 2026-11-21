@@ -8,9 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Branch to run the dev-only guard on (guard only, nothing else runs)
+        description: Branch to run the dev-only guard on
         required: true
         default: main
+      review:
+        description: Also run the Claude review of main (start with --ref main; never releases)
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -40,7 +44,7 @@ jobs:
           bash .github/scripts/guard.sh "$target" origin/dev
 
   classify:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.review && github.ref == 'refs/heads/main')
     needs: guard
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -65,7 +69,7 @@ jobs:
           python3 .github/scripts/review_range.py classify --head "$GITHUB_SHA"
 
   review:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.review && github.ref == 'refs/heads/main')
     needs: [guard, classify]
     uses: ./.github/workflows/review.yml
     with:
