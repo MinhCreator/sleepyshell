@@ -22,8 +22,8 @@ def notify(app, summary, body):
 
 
 def label(summary):
-    """The app label of the newest notification with this summary, as the cards show it."""
-    return s.js(f"(() => {{ const n = Notifs.list.find(x => x.summary === {summary!r}); return n ? Notifs.appLabel(n) : null; }})()")
+    """"title  ·  small line" of the newest notification with this summary, as the cards show them."""
+    return s.js(f"(() => {{ const n = Notifs.list.find(x => x.summary === {summary!r}); return n ? Notifs.titleOf(n) + '  ·  ' + Notifs.appLabel(n) : null; }})()")
 
 
 s = Shell.launch(sys.argv[1], "shell.qml", name="bar")
@@ -33,7 +33,16 @@ check(s.wait(lambda: notify("KeePassXC", "Plain reader", 'Entry "A" from databas
       "the bar answers on the bus")
 check(s.wait(lambda: label("Plain reader") == "sleepytest-reader  ·  KeePassXC"),
       "a reader with no desktop entry is named by its command, before KeePassXC", repr(label("Plain reader")))
-check(s.wait(lambda: s.visible(contains="sleepytest-reader  ·  KeePassXC")), "and the card shows it")
+check(s.wait(lambda: s.visible(text="sleepytest-reader")), "and the card shows it as its title")
+
+# the format KeePassXC 2.8 really sends: no entry name, no PID
+notify("KeePassXC", "No pid", "1 entry was used by /usr/bin/secret-tool")
+check(s.wait(lambda: label("No pid") == "secret-tool  ·  KeePassXC"), "the real format, without a PID, names the command",
+      repr(label("No pid")))
+
+notify("KeePassXC", "Many entries", "2 entries were used by /usr/bin/secret-tool")
+check(s.wait(lambda: label("Many entries") == "secret-tool  ·  KeePassXC"), "the plural wording (\"were used by\") is read too",
+      repr(label("Many entries")))
 
 # a live secret-tool under a shell under an app: copies of sleep and bash under those names (/proc shows the file name)
 bindir = RUN / "kpx-bin"
@@ -69,7 +78,7 @@ check(label("Reused pid") == "secret-tool  ·  KeePassXC", "a PID that names ano
       repr(label("Reused pid")))
 
 notify("Sleepytest", "Not KeePassXC", "was used by sleepytest-reader (PID: 5)")
-check(s.wait(lambda: label("Not KeePassXC") == "Sleepytest"), "another app's notification keeps its own name",
+check(s.wait(lambda: label("Not KeePassXC") == "Not KeePassXC  ·  Sleepytest"), "another app's notification keeps its own name",
       repr(label("Not KeePassXC")))
 
 done()

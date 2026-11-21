@@ -195,7 +195,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: root.notif?.summary ?? ""
+                        text: Notifs.titleOf(root.notif)
                         // the summary is app text like the body: a web page's notification title
                         // with <img src=...> would otherwise render as rich text (review 4)
                         textFormat: Text.PlainText

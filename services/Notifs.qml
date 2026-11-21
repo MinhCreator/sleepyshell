@@ -357,16 +357,21 @@ Singleton {
     // one (-a), and that name tells the reader nothing about who sent it
     function appLabel(n) {
         const a = n?.appName ?? "";
-        const caller = n ? root.callers[n.id] : undefined;
-        if (caller)
-            return caller.label + "  ·  " + a;
         return a.toLowerCase() === "notify-send" ? "" : a;
+    }
+
+    // The title a card shows: the app that read the secret for a KeePassXC notification, else the summary.
+    // KeePassXC stays on the small line (appLabel).
+    function titleOf(n) {
+        const caller = n ? root.callers[n.id] : undefined;
+        return caller ? caller.label : (n?.summary ?? "");
     }
 
     // ---- KeePassXC: which app read the secret ----
     // KeePassXC (Secret Service) names the reader only in the body: 'Entry "X" from database "Y" was used by
-    // <command> (PID: n)', or '<n> Entry(s) was used by <command> (PID: n)'. The card shows that app's icon
-    // and name before KeePassXC's own (iconUrls, appLabel). The English text is matched: under another
+    // <command> (PID: n)', or '1 entry was used by /usr/bin/secret-tool' or '2 entries were used by …' (KeePassXC 2.8 sends these, with no PID,
+    // so the PID is optional: without it the parents cannot be read). The card shows that app's icon
+    // before KeePassXC's own (iconUrls), and its name is the card's title (titleOf). The English text is matched: under another
     // language the card stays as KeePassXC sent it.
     // A helper that only fetches for someone else (secret-tool, mostly run from a shell) is looked through:
     // the names of its parent processes are read from /proc, and the first that is neither a helper nor a
@@ -388,12 +393,12 @@ Singleton {
             return null;
         // the last one: the caller ends the text, and an entry's name could hold the same words
         const text = String(body ?? "");
-        const at = text.lastIndexOf("was used by ");
-        const m = at < 0 ? null : /^was used by (.+?) \(PID: (\d{1,10})\)\s*$/.exec(text.slice(at));
+        const at = Math.max(text.lastIndexOf("was used by "), text.lastIndexOf("were used by "));
+        const m = at < 0 ? null : /^(?:was|were) used by (.+?)(?: \(PID: (\d{1,10})\))?\s*$/.exec(text.slice(at));
         if (!m)
             return null;
         const cmd = m[1].trim().split("/").pop();
-        return cmd === "" ? null : { cmd: cmd, pid: Number(m[2]) };
+        return cmd === "" ? null : { cmd: cmd, pid: m[2] === undefined ? null : Number(m[2]) };
     }
 
     // pure: which name the card shows for a caller and which app's icon it looks up, given the names of the
@@ -427,7 +432,7 @@ Singleton {
         if (!c)
             return;
         root.setCaller(n.id, root.callerCard(root.callerApp(c.cmd, [])));
-        if (!lookUp || !root.secretHelpers.includes(c.cmd) || c.pid <= 1)
+        if (!lookUp || !root.secretHelpers.includes(c.cmd) || c.pid === null || c.pid <= 1)
             return;
         root.callerPending = Object.assign({}, root.callerPending, { [n.id]: c.cmd });
         root.callerQueue = root.callerQueue.concat([{ id: n.id, pid: c.pid }]).slice(-8);
