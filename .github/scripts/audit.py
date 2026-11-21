@@ -16,6 +16,7 @@ calling the API, to check that nothing private reaches the public issue, the sum
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import datetime as dt
 import json
 import os
@@ -43,6 +44,18 @@ LABEL = "audit"
 MAX_TOKENS = 128000
 BATCH_WAIT = 300 * 60
 CHECKLIST = (REPO_ROOT / ".github/review/CHECKLIST.md").read_text()
+# --deep: one call per area instead of one for the whole codebase, so every file gets real attention. Each call
+# reads its area's files in full and sees every other path by name only. "the rest" is whatever no named area
+# covers (the root files, smaller folders, and any folder added later). The calls run in parallel as normal
+# (not batch) calls, so the report arrives within the hour, at full price: several times a regular audit.
+DEEP_AREAS = (
+    ("tests", ("tests/",)),
+    ("sleepysettings", ("sleepysettings/",)),
+    ("sleepybar", ("sleepybar/",)),
+    ("services", ("services/",)),
+    ("ci", (".github/",)),
+)
+DEEP_REST = "the rest"
 
 SCHEMA = {
     "type": "object",
@@ -155,7 +168,69 @@ def simulated(run_id: str) -> dict:
     }
 
 
-def run(simulate: str, previous: str, private_out: str) -> int:
+def deep_audit(cl, head: str, prev: list) -> tuple[claude.Result, str]:
+    """--deep: one max-effort call per area, in parallel, merged into one result. An area whose call runs out
+    of credit is named in the note; if every area does, CreditExhausted propagates like a regular audit's."""
+    named = tuple(p for _, prefixes in DEEP_AREAS for p in prefixes)
+    index = "\n".join(p for p in claude.git("ls-tree", "-r", "--name-only", "--full-tree", head).splitlines()
+                      if not p.startswith(REVIEW_SKIP_DIRS) and p not in REVIEW_SKIP_FILES)
+    areas = []
+    for name, prefixes in DEEP_AREAS + ((DEEP_REST, ()),):
+        if prefixes:
+            code, n = bundle(head, skip_dirs=REVIEW_SKIP_DIRS, skip_files=REVIEW_SKIP_FILES, only=prefixes)
+            mine = lambda f, p=prefixes: f.startswith(p)
+        else:
+            code, n = bundle(head, skip_dirs=REVIEW_SKIP_DIRS + named, skip_files=REVIEW_SKIP_FILES)
+            mine = lambda f: not f.startswith(named)
+        if not n:
+            continue
+        area_prev = [f for f in prev if mine(f.get("file") or "")]
+        user = (
+            f"Commit: {head}. Area: {name} ({n} files). This call audits only the files of this area; read every "
+            f"one of them closely. The rest of the repository is listed by path in <repository_index> for "
+            f"reference; judge cross-area data flow from what this area does with its inputs.\n\n"
+            f"<previous_findings>\n{json.dumps(area_prev, indent=1)}\n</previous_findings>\n\n"
+            f"<repository_index>\n{index}\n</repository_index>\n\n"
+            f"<area_code>\n{code}\n</area_code>\n\n"
+            "Audit this area's files against the checklist. In \"fixed\", list only previous findings of this "
+            "area. Return the JSON."
+        )
+        ok, tokens = claude.fits(cl, MODEL, SYSTEM, user, SCHEMA, MAX_TOKENS)
+        if not ok:
+            raise ReviewError(f"--deep area {name} does not fit one call ({tokens:,} tokens)")
+        areas.append((name, n, tokens, user))
+
+    def one(area):
+        return claude.call_json(cl, MODEL, "max", SYSTEM, area[3], SCHEMA, MAX_TOKENS)
+
+    done, out_of_credit = [], []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(areas)) as pool:
+        futures = {pool.submit(one, a): a for a in areas}
+        for fut in concurrent.futures.as_completed(futures):
+            name, n, tokens, _ = futures[fut]
+            try:
+                done.append((name, n, tokens, fut.result()))
+            except CreditExhausted:
+                out_of_credit.append(name)
+    if not done:
+        raise CreditExhausted("every --deep area ran out of credit")
+    order = [a[0] for a in areas]
+    done.sort(key=lambda d: order.index(d[0]))
+    data = {
+        "summary": "\n\n".join(f"**{name}:** {res.data['summary'].strip()}" for name, _, _, res in done),
+        "findings": [f for *_, res in done for f in res.data["findings"]],
+        "fixed": sorted({t for *_, res in done for t in res.data["fixed"]}),
+    }
+    merged = claude.Result(data, MODEL, sum(r.input_tokens for *_, r in done),
+                           sum(r.output_tokens for *_, r in done), batch=False)
+    note = "deep audit, one call per area: " + ", ".join(f"{name} ({n} files, {tokens:,} tokens)"
+                                                          for name, n, tokens, _ in done)
+    if out_of_credit:
+        note += " · not audited, credit ran out: " + ", ".join(sorted(out_of_credit))
+    return merged, note
+
+
+def run(simulate: str, previous: str, private_out: str, deep: bool = False) -> int:
     today = dt.date.today().isoformat()
     event = os.environ.get("GITHUB_EVENT_NAME", "")
     if simulate != "none" and os.environ.get("GITHUB_ACTIONS") == "true" and event != "workflow_dispatch":
@@ -178,6 +253,14 @@ def run(simulate: str, previous: str, private_out: str) -> int:
         if hint:
             raise ReviewError(hint) from exc
         raise
+    if deep:
+        try:
+            res, note = deep_audit(cl, head, prev)
+        except CreditExhausted:
+            claude.credit_notice(f"deep audit {today}")
+            return 0
+        claude.credit_resumed()
+        return publish(res, note, prev, today + " (deep)", private_out, close_issue=True)
     try:
         user, note = None, ""
         for skip, label in ((REVIEW_SKIP_DIRS, "the codebase"),
@@ -233,9 +316,10 @@ def main() -> None:
     ap.add_argument("--simulate", default="none", choices=["none", "credit_exhausted", "findings"])
     ap.add_argument("--previous", default="")
     ap.add_argument("--private-out", default="")
+    ap.add_argument("--deep", action="store_true", help="one max-effort call per area (normal API, full price)")
     args = ap.parse_args()
     try:
-        sys.exit(run(args.simulate, args.previous, args.private_out))
+        sys.exit(run(args.simulate, args.previous, args.private_out, deep=args.deep))
     except ReviewError as exc:
         claude.fail(str(exc))
     except Exception as exc:

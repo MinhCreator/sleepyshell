@@ -14,6 +14,10 @@ on:
         type: choice
         options: [none, credit_exhausted, findings]
         default: none
+      deep:
+        description: Deep audit, one max-effort call per area (normal API, about an hour, several times the cost)
+        type: boolean
+        default: false
 
 permissions: {}
 
@@ -48,13 +52,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           # a simulation only from a manual run's input; the schedule (no inputs) always runs the real audit
           SIMULATE: ${{ github.event_name == 'workflow_dispatch' && inputs.simulate || 'none' }}
+          # deep only from a manual run's checkbox; the schedule always runs the regular one-call audit
+          DEEP: ${{ github.event_name == 'workflow_dispatch' && inputs.deep && '--deep' || '' }}
           ANTHROPIC_FEDERATION_RULE_ID: ${{ vars.ANTHROPIC_FEDERATION_RULE_ID }}
           ANTHROPIC_ORGANIZATION_ID: ${{ vars.ANTHROPIC_ORGANIZATION_ID }}
           ANTHROPIC_SERVICE_ACCOUNT_ID: ${{ vars.ANTHROPIC_SERVICE_ACCOUNT_ID }}
           ANTHROPIC_WORKSPACE_ID: ${{ vars.ANTHROPIC_WORKSPACE_ID }}
         run: >-
           "$RUNNER_TEMP/venv/bin/python" .github/scripts/audit.py --simulate "$SIMULATE"
-          --previous "$RUNNER_TEMP/previous-findings.json" --private-out "$RUNNER_TEMP/private-findings.json"
+          --previous "$RUNNER_TEMP/previous-findings.json" --private-out "$RUNNER_TEMP/private-findings.json" $DEEP
       - name: File security findings privately
         if: ${{ !cancelled() }}
         env:
